@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Acme Roasters — a totally unrelated third-party site</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: Georgia, serif; max-width: 760px; margin: 60px auto; padding: 0 20px; color: #2b2b2b; }
+    h1 { font-size: 28px; }
+    .divider { border: none; border-top: 1px solid #ddd; margin: 40px 0; }
+    footer { color: #999; font-size: 13px; margin-top: 60px; }
+  </style>
+</head>
+<body>
+  <h1>Acme Roasters ☕</h1>
+  <p>
+    This is a plain, unrelated HTML page — it stands in for "some business's real
+    website" — with no build tooling and no framework. It proves the widget can be
+    dropped into any third-party site with two lines of markup.
+  </p>
+
+  <hr class="divider" />
+
+  <h2>What our customers say</h2>
+
+  <!-- The widget: one div + one script tag. Nothing else needed. -->
+  <div
+    id="testimonial-widget"
+    data-api="http://localhost:4000"
+    data-accent="#b23a2e"
+    data-limit="6"
+  ></div>
+  <script src="http://localhost:4000/widget.js"></script>
+
+  <footer>
+    Powered by testimonial.desk — this page itself has zero React, zero build step.
+  </footer>
+</body>
+</html>
