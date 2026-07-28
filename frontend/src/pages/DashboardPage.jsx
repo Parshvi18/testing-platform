@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { analyzeTestimonial, listTestimonials, setTestimonialStatus } from "../lib/api";
+import { listTestimonials, setTestimonialStatus } from "../lib/api";
 import TestimonialCard from "../components/TestimonialCard";
 
 const FILTERS = [
@@ -15,8 +15,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pendingActions, setPendingActions] = useState({});
-  const [analysis, setAnalysis] = useState({});
-  const [pendingAnalysis, setPendingAnalysis] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -61,23 +59,6 @@ export default function DashboardPage() {
     } catch (err) {
       setError(err.message);
       setPendingActions((p) => {
-        const next = { ...p };
-        delete next[id];
-        return next;
-      });
-    }
-  }
-
-  async function analyze(id) {
-    setPendingAnalysis((p) => ({ ...p, [id]: true }));
-    setError(null);
-    try {
-      const data = await analyzeTestimonial(id);
-      setAnalysis((prev) => ({ ...prev, [id]: data }));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setPendingAnalysis((p) => {
         const next = { ...p };
         delete next[id];
         return next;
@@ -138,45 +119,24 @@ export default function DashboardPage() {
                 stamp={stampStatus}
                 animateStamp={Boolean(pendingDecision)}
                 footer={
-                  <>
-                    {analysis[t.id] && (
-                      <div className="ai-note">
-                        <div className="ai-note-head">
-                          <span className={`sentiment ${analysis[t.id].sentiment}`}>{analysis[t.id].sentiment}</span>
-                          <span className="ai-source">{analysis[t.id].source === "gemini" ? "AI" : "local"} analysis</span>
-                        </div>
-                        <p>{analysis[t.id].summary}</p>
-                        <div className="tag-row">
-                          {analysis[t.id].tags.map((tag) => (
-                            <span key={tag}>{tag}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  t.status === "pending" || filter === "all" ? (
                     <div className="t-actions">
-                      <button className="btn" disabled={Boolean(pendingAnalysis[t.id])} onClick={() => analyze(t.id)}>
-                        {pendingAnalysis[t.id] ? "Analyzing..." : "Analyze"}
+                      <button
+                        className="btn btn-approve"
+                        disabled={Boolean(pendingDecision) || t.status === "approved"}
+                        onClick={() => decide(t.id, "approved")}
+                      >
+                        Approve
                       </button>
-                      {(t.status === "pending" || filter === "all") && (
-                        <>
-                          <button
-                            className="btn btn-approve"
-                            disabled={Boolean(pendingDecision) || t.status === "approved"}
-                            onClick={() => decide(t.id, "approved")}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            className="btn btn-reject"
-                            disabled={Boolean(pendingDecision) || t.status === "rejected"}
-                            onClick={() => decide(t.id, "rejected")}
-                          >
-                            Decline
-                          </button>
-                        </>
-                      )}
+                      <button
+                        className="btn btn-reject"
+                        disabled={Boolean(pendingDecision) || t.status === "rejected"}
+                        onClick={() => decide(t.id, "rejected")}
+                      >
+                        Decline
+                      </button>
                     </div>
-                  </>
+                  ) : null
                 }
               />
             );

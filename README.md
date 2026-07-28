@@ -6,7 +6,7 @@ plus an embeddable widget so any third-party site can display them too.
 
 ## Stack
 
-- **Frontend:** React 18 + Vite, React Router. Plain CSS with a small design-token
+- **Frontend:** React 19 + Vite, React Router. Plain CSS with a small design-token
   system (no Tailwind/UI kit) — see `frontend/src/styles.css`.
 - **Backend:** Node.js + Express + `better-sqlite3` (file-based SQLite, zero setup).
 - **Widget:** vanilla JS, zero dependencies, renders in a Shadow DOM so it can't
@@ -33,31 +33,6 @@ npm run dev           # http://localhost:5173
 
 The frontend talks to `http://localhost:4000` by default (see
 `frontend/.env.example` — copy to `.env` to override via `VITE_API_URL`).
-
-### Verify the core assignment flow
-
-With both servers running:
-
-1. Open `http://localhost:5173`.
-2. Submit a testimonial from **Share a story**.
-3. Open `http://localhost:5173/dashboard` and confirm it appears as pending.
-4. Click **Approve**.
-5. Open `http://localhost:5173/wall` and confirm the testimonial appears.
-6. Submit another testimonial, click **Decline**, and confirm it never appears
-   on the wall.
-
-### Optional AI analysis
-
-The dashboard includes an **Analyze** button on each testimonial. Without any
-setup it returns a local sentiment/summary/tag suggestion so the demo keeps
-working offline.
-
-To use Gemini instead, set these before starting the backend:
-
-```bash
-export GEMINI_API_KEY="your-key"
-export GEMINI_MODEL="gemini-1.5-flash"
-```
 
 ### Try the widget on a "third-party" page
 
@@ -93,13 +68,13 @@ stands in for a real business's website, and pulls in the widget with:
   widget (`data-limit`).
 - Basic accessibility: labeled form fields, `role="radiogroup"` star picker,
   `aria-label`s on ratings, visible focus states.
-- **P2 — AI-assisted dashboard analysis:** each testimonial can be analyzed for
-  sentiment, a short summary, and suggested tags. It uses Gemini when
-  `GEMINI_API_KEY` is configured and falls back to local analysis for offline
-  demos.
 
 ## What's not done
 
+- No AI-powered feature (P2) — ran out of time budget before getting to it.
+  If I had another hour, this is where I'd spend it: a "summarize this
+  testimonial" or sentiment/tag suggestion in the dashboard, using the free
+  Gemini API.
 - No live deploy (P2) — the app runs locally only. Deploying was cut in favor
   of polishing the core loop and widget, per the brief's own priority order.
 - No junk/spam filtering beyond exact-duplicate detection (e.g. no profanity

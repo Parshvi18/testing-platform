@@ -35,10 +35,6 @@ export function setTestimonialStatus(id, status) {
   });
 }
 
-export function analyzeTestimonial(id) {
-  return request(`/api/testimonials/${id}/analyze`, { method: "POST" });
-}
-
 export function listApproved({ page = 1, limit = 9 } = {}) {
   return request(`/api/testimonials/approved?page=${page}&limit=${limit}`);
 }

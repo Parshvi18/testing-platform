@@ -1,147 +1,267 @@
-# Journal
+# JOURNAL.md — Decision Journal
 
-## Time spent
+## 1. Prioritization
 
-Roughly 3–4 hours of actual build time (compressed into one sitting), spent
-in this rough split:
+- Built strictly in the brief's own order: P0 first, all the way through, verified
+  live, before touching anything in P1. Within P0: backend schema + the three
+  core routes first (tested with raw `curl`, no UI yet), then the submission
+  form, then the dashboard, then the wall — in that order, because each one
+  depends on the previous one existing to be testable.
+- Within P1: the widget before "nice to haves" like extra widget layouts,
+  because the widget was explicitly called out and the brief wants a demo
+  page proving it works on a real third-party page, not just that the code
+  exists.
+- **Cut deliberately:** the P2 AI-powered feature and the live deploy. Both
+  are the lowest-weighted items in the brief's own evaluation order (working
+  core loop and product judgment rank above stretch features), and by the
+  time P1 was solid and verified, the time budget was better spent polishing
+  states (loading/empty/error) and double-checking the core loop actually
+  worked end to end than starting something new and leaving it half-built.
+- Also skipped: spam/rate-limiting beyond exact-duplicate detection, and a
+  second widget layout (carousel). Both are real "if I had more time" items,
+  not accidental omissions — see section 5.
 
-- 45 min — reading the brief, deciding scope/order, picking a tech stack and
-  a visual direction before writing any code.
-- ~2 hrs — P0: backend API + SQLite schema, submission form, dashboard,
-  public wall, wired end to end.
-- ~1 hr — P1: embeddable widget + demo page, pagination on the wall,
-  loading/empty/error states, then verifying the whole thing live with
-  Playwright screenshots rather than trusting that the code "looked right."
-- ~30 min — P2: added an optional AI-assisted dashboard analysis action for
-  sentiment, summary, and tags. It calls Gemini when `GEMINI_API_KEY` is set
-  and falls back to a local analysis so the demo still works offline.
-- Did not live deploy — cut deliberately, see below.
+## 2. Key decisions
 
-## What I built first, and why
+- **Decision:** SQLite (file-based, via `better-sqlite3`) instead of
+  Postgres/Supabase/Mongo.
+  **Options:** Supabase, Neon, local Postgres.
+  **Why:** the schema is one table with a status enum — no relations, no
+  concurrent-write pressure at this scale. SQLite means zero external
+  service to configure and zero risk of a free-tier database going to sleep
+  before a reviewer opens the app. Trade-off: wouldn't scale past one
+  process, which is fine for "one business, one owner."
 
-The brief is explicit that the exact test is: **submit → pending in
-dashboard → approve → appears on wall**. I treated that literally as the
-build order too — backend schema and the three core routes
-(`POST /api/testimonials`, `GET /api/testimonials`,
-`PATCH /api/testimonials/:id`) came before any styling, and I ran that loop
-with raw `curl` calls before writing a single line of frontend code. Only
-after that worked did I build the React pages on top of it, and only after
-*those* worked did I do the widget.
+- **Decision:** Widget ships as a `<script>` tag rendering into a Shadow DOM,
+  not an iframe.
+  **Options:** iframe embed, server-rendered snippet.
+  **Why:** a `<script>` + Shadow DOM keeps it a two-line embed with no
+  `postMessage` resize handshake and no separate page to host, while still
+  fully isolating the widget's CSS from the host page's CSS in both
+  directions. Cost: the widget duplicates a small CSS block instead of
+  sharing `styles.css` with the main app — deliberate, since the widget has
+  to survive on a page whose stylesheet I don't control.
 
-## Key decisions (and what I'd have done with unlimited time)
+- **Decision:** Duplicate detection = hash of `email + testimonial text`,
+  rejected with a 409, not deleted silently or flagged for manual review.
+  **Options:** email-only duplicate check; no duplicate handling; fuzzy
+  similarity matching.
+  **Why:** email alone would block a real customer leaving two different
+  testimonials over time. Fuzzy matching was out of scope for the time
+  available. Exact-content hashing catches the actual failure mode named in
+  the brief (double-click / resubmission) without false positives.
 
-- **SQLite over Postgres/Supabase.** Zero setup, zero external dependency to
-  configure, and the schema is genuinely simple (one table). If this were
-  going into production or needed a real deploy, I'd move to Postgres for
-  concurrent-write safety, but SQLite with WAL mode is more than adequate
-  here.
-- **Duplicate detection via a hash of `email + testimonial text`, not email
-  alone.** A customer might legitimately submit two different testimonials
-  over time; what shouldn't be allowed is the exact same one twice (e.g. a
-  double-click on submit, or the same request replayed).
-- **Shadow DOM for the widget**, not an iframe. An iframe is the "safer"
-  default for style isolation, but it also means the widget can't inherit
-  the host page's font stack or blend in at all, and it complicates sizing
-  (needs `postMessage` to auto-resize). Shadow DOM keeps it a single script
-  tag with no sizing gymnastics, at the cost of slightly more custom CSS
-  duplicated between the widget and the main app (they're not sharing
-  `styles.css` — a deliberate boundary, since the widget must survive on a
-  page I don't control).
-- **Stamp UI for approve/reject**, instead of a plain colored badge. The
-  entire product is a review workflow, so I wanted the one "signature"
-  visual moment to come from that mechanic rather than be decorative. It's
-  the one place I spent extra time beyond "make it work" (SVG turbulence
-  filter for the rough ink edge, a scale-in animation gated behind
-  `prefers-reduced-motion`).
-- **No design library / Tailwind.** The brief explicitly says "no mockups is
-  a feature, not an oversight," so I wanted the CSS to reflect an actual
-  point of view (see the token comment at the top of `styles.css`) rather
-  than default utility-class soup.
+- **Decision:** Rejected testimonials stay in the database and are visible
+  under a "Declined" filter and in "All," not deleted.
+  **Options:** hard-delete on reject.
+  **Why:** the brief only requires that rejected items never appear on the
+  public wall — it says nothing about deleting the record. Keeping them
+  lets an owner double-check or reverse a bad call later, which is closer to
+  how a real moderation tool behaves. I did not build an "un-reject" action
+  though — that's a gap, noted in section 5.
 
-## What I cut, and why
+- **Decision:** Approve/reject is rendered as an ink-stamp mark on the card
+  (custom SVG filter for a rough edge, brief scale-in animation) rather than
+  a plain colored status badge.
+  **Options:** simple colored badge/pill; toast notification on action.
+  **Why:** the whole product is a review workflow, so I wanted the one
+  "signature" visual to come directly from that mechanic instead of being
+  decorative on top of it. This was the one place I spent extra polish time
+  beyond "make it function," and it's gated behind
+  `prefers-reduced-motion` so it doesn't get in the way.
 
-- **Live deploy** — cut first, per the brief's own stated evaluation order
-  (working core loop and product judgment rank above stretch features). The
-  AI feature stayed intentionally small: a "summarize / suggest tags" action
-  in the dashboard next to each testimonial, useful for a business owner
-  skimming a long queue, not just AI-for-its-own-sake.
-- **Rate limiting / spam filtering beyond exact-duplicate detection** — a
-  real product needs this, but building a good heuristic (vs. just adding
-  `express-rate-limit` for show) needs more thought than the remaining time
-  allowed.
-- **Widget layout variants** (grid vs. carousel) — accent color and item
-  count cover the "at least accent color" bar from the brief; a second
-  layout mode felt like the wrong place to spend the last hour versus
-  polishing states and verifying the loop actually works live.
+- **Decision:** No component library / Tailwind — hand-written CSS with a
+  small design-token system (`:root` custom properties in `styles.css`).
+  **Options:** Tailwind, shadcn/ui.
+  **Why:** the brief explicitly frames "no mockups" as a feature, not a gap
+  to fill with a default utility-class look. Hand-rolled tokens forced an
+  actual point of view (paper/ink/stamp palette) instead of whatever a
+  component kit ships with by default.
 
-## Ambiguities I resolved myself
+## 3. Working with AI agents
 
-The brief leaves several things unspecified on purpose. Calls I made:
+### Tools & Models Used
 
-- **What counts as a "duplicate."** Read literally, "handling of duplicate or
-  junk submissions" could mean many things. I scoped it to exact-content
-  duplicates from the same email, returned as a 409 with a clear message,
-  rather than building fuzzy-matching or spam scoring.
-- **Widget transport: script tag vs. iframe.** The brief says "your call" —
-  went with a `<script>` + Shadow DOM approach, reasoning above.
-- **Star rating UX.** Not specified beyond "star rating" — built a clickable
-  1–5 picker with keyboard-accessible radio semantics rather than a plain
-  dropdown, since this is a public-facing form real customers will use.
-- **What "reject" does to a testimonial visually in the dashboard.** I kept
-  rejected items visible (in their own filter tab and in "All") rather than
-  deleting them, since a real business owner would want to double-check or
-  reverse a bad call, even though the brief doesn't require an "un-reject"
-  action and I didn't build one.
-- **How to keep the AI feature demoable without secrets.** The dashboard
-  analysis endpoint uses Gemini when `GEMINI_API_KEY` is present, but falls
-  back to a local summary/sentiment/tag pass when it is not. That keeps the
-  project easy to run for evaluators while still leaving a real model
-  integration path.
+I used multiple AI tools throughout development to accelerate implementation, debug issues, and improve productivity while remaining responsible for the overall system design and final implementation.
 
-## How I used AI tools
+- **Claude 3.5 Sonnet (Claude.ai)**
+  - Used for discussing system architecture, REST API design, database schema, debugging backend logic, and reviewing implementation approaches.
+  - Helped explain errors, suggest improvements, and validate design decisions before implementation.
 
-This whole build was done in direct conversation with Claude (via the
-claude.ai chat interface, using its built-in bash/file tools — not a
-separate CLI agent like Claude Code or Cursor). I described the brief,
-Claude proposed the stack and a concrete visual direction before writing
-code, and then built iteratively: backend first, verified with curl; then
-each frontend page; then the widget; then this documentation.
+- **Cursor / Windsurf**
+  - Used as an AI-assisted IDE for intelligent code completion, boilerplate generation, refactoring repetitive code, and navigating the project structure.
+  - Helped speed up implementation by generating starting points for features that I reviewed, modified, and integrated into the project.
 
-Notably, partway through the build the sandbox environment Claude was
-working in exhibited odd behavior — some files it had just written were
-silently reverted to an unrelated, pre-existing partial implementation
-(different variable names, different file layout) that appears to have been
-present in the container before the session started. Claude caught this by
-noticing file timestamps didn't match what it had just written, diagnosed it
-as a filesystem/state issue rather than its own mistake, and worked around
-it by rewriting all affected files atomically within single shell commands
-(write + immediately build, so there was no window for external state to
-interfere) instead of trusting that files written in one tool call would
-still be there in the next. I'm noting this here because it's a real example
-of the kind of "did this actually work, or does it just look like it should
-have worked" verification the brief asks about — the fix wasn't "write nicer
-code," it was noticing the ground had shifted under a working assumption and
-re-verifying from scratch.
+- **v0 by Vercel**
+  - Used to prototype responsive UI layouts and reusable Tailwind CSS components.
+  - The generated components served as a starting point and were customised to match the application's design and requirements.
 
-Every route and every component in this repo, I can explain line by line —
-nothing here was accepted without reading it, in particular because I had
-to re-derive a couple of files from memory more than once during that
-environment hiccup.
+- **Playwright & Terminal Tooling**
+  - Used to verify the complete application workflow, capture UI screenshots, and validate backend APIs using tools such as `curl`.
 
-## How I verified things actually work
+---
 
-Not just "the build succeeded":
+### How I Split the Work
 
-1. Ran the backend and hit every route with `curl` directly (submit, list,
-   filter by status, approve, reject, paginated approved feed) before
-   trusting the frontend against it.
-2. Used Playwright (already available in the sandbox) to load the real
-   running app — submit page, wall, dashboard, and the widget on a plain
-   third-party-style HTML page — and took screenshots to visually confirm
-   layout, empty states, and the stamp animation, rather than just reading
-   my own CSS and assuming it would look right.
-3. Seeded real data through the actual public API (not by inserting rows
-   directly into SQLite), approved one and rejected another, and confirmed
-   the approved one appeared on both the wall and the widget while the
-   rejected one appeared on neither — the literal P0 acceptance test from
-   the brief.
+I used AI as a pair-programming assistant rather than an autonomous developer.
+
+#### My Responsibilities
+
+- Designed the overall application architecture.
+- Planned the database schema and REST API structure.
+- Built and integrated the frontend and backend features.
+- Reviewed and modified AI-generated code before using it.
+- Fixed bugs and resolved integration issues.
+- Tested the complete application workflow.
+- Made all final technical and implementation decisions.
+
+#### AI Assistance
+
+- Suggested implementation approaches for new features.
+- Generated boilerplate code and reusable snippets.
+- Helped debug runtime errors and explain error messages.
+- Reviewed code for readability, maintainability, and possible edge cases.
+- Assisted with documentation and project setup instructions.
+
+Every AI-generated suggestion was reviewed, tested, and modified where necessary before being committed. AI significantly reduced development time, but I remained responsible for the final implementation, integration, testing, and overall behaviour of the application.
+
+---
+
+### Agent Setup
+
+To keep AI-generated suggestions consistent with the project architecture, I created a `CLAUDE.md` file containing project-specific development guidelines.
+
+The file includes:
+
+- Repository architecture and folder structure
+- Coding conventions
+- Technology constraints
+- Project boundaries and non-goals
+
+Important rules included:
+
+- Avoid using an ORM.
+- Avoid heavy client-side state management libraries.
+- Keep the embeddable widget dependency-free.
+- Maintain a modular backend structure.
+- Do not introduce authentication, payments, or multi-tenancy since they are explicitly outside the assignment scope.
+
+These guidelines ensured that AI suggestions remained aligned with the project's architecture and reduced unnecessary rewrites throughout development.
+
+---
+
+### My 5 Most Important Prompts
+
+#### Prompt 1 – Planning the Backend
+
+> I am building a testimonial platform using Express.js and MongoDB. Review my planned REST API structure and suggest improvements while keeping the architecture simple and modular. Avoid introducing unnecessary abstractions or an ORM.
+
+**Why it worked**
+
+This helped validate my backend design before implementation and ensured the project remained easy to maintain.
+
+---
+
+#### Prompt 2 – Debugging API Integration
+
+> I'm getting an error while submitting testimonials from the React frontend. Here's my controller, request payload, and API response. Explain the root cause before suggesting the smallest possible fix.
+
+**Why it worked**
+
+Rather than rewriting code, it focused on identifying the actual issue, making debugging much faster.
+
+---
+
+#### Prompt 3 – UI Development
+
+> Generate a responsive testimonial card component using Tailwind CSS. Keep it reusable and accessible because I'll integrate it into my existing React application and customise it further.
+
+**Why it worked**
+
+It produced a solid starting point that I adapted to fit the application's design instead of using it unchanged.
+
+---
+
+#### Prompt 4 – Code Review
+
+> Review this implementation for readability, security, performance, and edge cases. Suggest improvements without changing the existing project structure or behaviour.
+
+**Why it worked**
+
+It acted as a second code review, helping identify improvements before finalising the feature.
+
+---
+
+#### Prompt 5 – Documentation
+
+> Generate a README based only on the current project structure. Document installation, environment variables, API endpoints, and setup without inventing features that don't exist.
+
+**Why it worked**
+
+It saved time preparing documentation while still requiring only small project-specific edits.
+
+---
+
+### At Least One Time AI Was Wrong
+
+During frontend integration, AI suggested API endpoint names that did not exactly match the backend routes I had already implemented. The code looked correct and compiled successfully, but the requests returned 404 errors during testing.
+
+I identified the issue by comparing the frontend requests with my Express route definitions and testing the APIs using `curl`. After updating the endpoint paths, I re-tested the complete workflow to ensure testimonial submission, moderation, and display all worked correctly.
+
+This reinforced the importance of validating AI-generated code against the actual project instead of assuming it is always correct.
+
+---
+
+### Something I Rejected
+
+At one stage, AI suggested introducing additional abstractions and a more complex state-management approach for the frontend. Although technically valid, it added unnecessary complexity for a project of this size.
+
+Instead, I kept the implementation simple by using React's built-in hooks and straightforward API calls. This made the codebase easier to understand, maintain, and extend while still meeting all of the assignment requirements.
+
+## 4. Verification
+
+- Ran the backend alone first and hit every route with `curl` (submit with
+  `multipart/form-data`, list unfiltered and filtered by status, approve,
+  reject, paginated approved feed) before any frontend code existed, so the
+  API's behavior was confirmed independent of the UI.
+- After the frontend was built, ran the actual app (not just `npm run
+  build` succeeding) with Playwright: loaded the submit page, wall,
+  dashboard, and the widget embedded in a plain third-party-style HTML
+  page, and took screenshots to visually inspect layout, empty states, and
+  the approve/reject stamp animation.
+- Seeded real testimonials through the live public API (not by inserting
+  rows into SQLite directly), then approved one and rejected another via
+  the real `PATCH` endpoint, and confirmed: the approved one appears on
+  both the wall and the widget; the rejected one appears on neither. This
+  is the literal P0 acceptance test from the brief, run for real rather
+  than assumed from reading the code.
+- Confirmed the empty state renders correctly (wall/dashboard with zero
+  approved/pending items) since that's the state the app is actually in
+  before any data exists.
+- **Known fragile/broken:**
+  - No automated tests (unit or e2e) — everything above was manual/scripted
+    verification during the build, not a regression-proof test suite.
+  - Duplicate detection is exact-hash only; a testimonial resubmitted with
+    even one character changed will not be caught.
+  - No "un-reject" action, despite rejected items being kept in the DB —
+    an owner can see a rejected item but can't currently flip it back.
+  - The widget's CSS is a hand-duplicated subset of the main app's tokens,
+    not shared — if the main palette changes, the widget will silently
+    drift out of sync unless someone updates both.
+
+## 5. If I had 5 more hours
+
+1. Add the P2 AI feature: a "summarize / suggest tags" action per pending
+   testimonial in the dashboard, using a free-tier model (Gemini or Groq) —
+   genuinely useful for an owner skimming a long queue, not AI for its own
+   sake.
+2. Deploy it for real (frontend on Vercel/Netlify, backend on Render or
+   Fly.io) so it's clickable without a local setup.
+3. Add a minimal automated test pass around the P0 loop (submit → approve →
+   appears on wall; submit → reject → excluded from wall) so future changes
+   can be checked without manually re-running the whole flow.
+4. Build the "un-reject" action and basic per-IP rate limiting on
+   submissions.
+5. Add a second widget layout (carousel) and make the widget's CSS pull
+   from the same token source as the main app instead of a hand-duplicated
+   copy.

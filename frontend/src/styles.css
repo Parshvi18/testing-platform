@@ -89,17 +89,7 @@ button { font-family: inherit; }
 .filter-row { display: flex; gap: 8px; margin: 24px 0 28px; }
 .filter-chip { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink-soft); cursor: pointer; }
 .filter-chip.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-.t-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.ai-note { margin-top: 14px; padding: 12px; border: 1px dashed var(--line); background: rgba(255,255,255,0.28); border-radius: var(--radius); }
-.ai-note-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.ai-note p { margin: 0 0 10px; color: var(--ink-soft); font-size: 13px; line-height: 1.4; }
-.ai-source { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.sentiment { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 600; }
-.sentiment.positive { color: var(--stamp-green); }
-.sentiment.neutral { color: var(--muted); }
-.sentiment.negative { color: var(--stamp-red); }
-.tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.tag-row span { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); }
+.t-actions { display: flex; gap: 8px; margin-top: 14px; }
 .wall { padding-top: 56px; padding-bottom: 80px; }
 .t-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 28px 24px; margin-top: 12px; }
 .t-skeleton { height: 168px; }
